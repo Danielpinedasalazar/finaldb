@@ -1,0 +1,100 @@
+{
+  "Comics": {
+    "_id": "ObjectId",
+    "title": "String",
+    "description": "String",
+    "price": "Number",
+    "category": "String"
+  },
+  "Characters": {
+    "_id": "ObjectId",
+    "name": "String",
+    "powers": ["String"],
+    "weaknesses": ["String"],
+    "affiliations": ["String"]
+  },
+  "VillagersAndMortalArms": {
+    "_id": "ObjectId",
+    "name": "String",
+    "description": "String",
+    "availability": "Boolean"
+  },
+  "Customers": {
+    "_id": "ObjectId",
+    "name": "String",
+    "birthday": "Date",
+    "email": "String",
+    "purchase_history": ["ObjectId"]
+  },
+  "Transactions": {
+    "_id": "ObjectId",
+    "comic_id": "ObjectId",
+    "customer_id": "ObjectId",
+    "purchase_date": "Date",
+    "total_amount": "Number"
+  }
+}
+
+db.Comics.find({ price: { $lt: 20 } }).sort({ title: 1 });
+
+db.Characters.find({ powers: { $in: ['flight'] }, category: 'superhero' }).sort({ name: 1 });
+
+db.HeroVillainBattles.aggregate([
+  { $match: { result: 'hero' } },
+  { $group: { _id: "$villain_id", defeats: { $sum: 1 } } },
+  { $match: { defeats: { $gt: 3 } } },
+  { $lookup: {
+      from: 'Characters',
+      localField: '_id',
+      foreignField: '_id',
+      as: 'villain'
+    }
+  },
+  { $unwind: '$villain' },
+  { $project: { villain_name: '$villain.name', defeats: 1 } }
+]);
+
+db.Transactions.aggregate([
+  { $group: { _id: "$customer_id", total_purchases: { $sum: 1 }, total_spent: { $sum: "$total_amount" } } },
+  { $match: { total_purchases: { $gt: 5 } } },
+  { $lookup: {
+      from: 'Customers',
+      localField: '_id',
+      foreignField: '_id',
+      as: 'customer'
+    }
+  },
+  { $unwind: '$customer' },
+  { $project: { customer_name: '$customer.name', total_purchases: 1, total_spent: 1 } }
+]);
+
+db.Transactions.aggregate([
+  { $group: { _id: "$comic_id", count: { $sum: 1 } } },
+  { $lookup: {
+      from: 'Comics',
+      localField: '_id',
+      foreignField: '_id',
+      as: 'comic'
+    }
+  },
+  { $unwind: '$comic' },
+  { $group: { _id: "$comic.category", total_purchases: { $sum: "$count" } } },
+  { $sort: { total_purchases: -1 } },
+  { $limit: 1 }
+]);
+
+db.Characters.find({ affiliations: { $all: ['Justice League', 'Avengers'] } });
+
+db.Comics.aggregate([
+  { $match: { title: { $regex: 'batalla', $options: 'i' }, category: { $in: ['superhero', 'villain'] } } },
+  { $lookup: {
+      from: 'VillagersAndMortalArms',
+      localField: '_id',
+      foreignField: 'comic_id',
+      as: 'mortalArms'
+    }
+  },
+  { $unwind: '$mortalArms' },
+  { $match: { 'mortalArms.name': { $regex: 'mortal arm', $options: 'i' } } }
+]);
+
